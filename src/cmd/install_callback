@@ -1,0 +1,107 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "${SCRIPT_DIR}/common"
+
+export HOME="${WORKING_DIR}"
+export HERMES_HOME="${HERMES_HOME}"
+export PATH="/var/apps/python312/target/bin:${VENV_DIR}/bin:$PATH"
+
+install_log "=== 开始 Hermes Agent 安装 ==="
+
+# ── 强制清理保留标记 ──
+rm -f "${TRIM_PKGHOME}/.hermes_keep_runtime"
+
+ensure_dirs
+
+# ── Step 1: 创建 Python 虚拟环境 ──
+install_log "=== 步骤 1/3: 创建 Python 虚拟环境 ==="
+rm -rf "${VENV_DIR}"
+${PYTHON_BIN} -m venv "${VENV_DIR}" 2>&1 | while IFS= read -r line; do install_log "venv: $line"; done
+if [ $? -ne 0 ]; then
+    install_log "错误：虚拟环境创建失败！"
+    install_log "Python 版本: $(${PYTHON_BIN} --version 2>&1)"
+    exit 1
+fi
+install_log "虚拟环境创建成功。"
+
+# ── Step 2: 安装依赖 ──
+install_log "=== 步骤 2/3: 安装依赖 ==="
+install_log "使用的 PyPI 镜像源: ${PYPI_MIRROR_URL}"
+
+install_log "正在升级 pip、setuptools、wheel..."
+"${VENV_DIR}/bin/python3" -m pip install --upgrade pip setuptools wheel -i "${PYPI_MIRROR_URL}" 2>&1 | while IFS= read -r line; do install_log "pip: $line"; done
+
+# ── 提前解压 app.tgz ──
+# 关键：install_callback 运行时，fpk 被解压到临时目录（如 /vol2/appcenter-downloads/xxx-tpk/）
+# SCRIPT_DIR 指向该目录下的 cmd/，所以 app.tgz 在 SCRIPT_DIR 的上一级
+FPK_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+APP_TGZ="${FPK_DIR}/app.tgz"
+
+if [ -f "${APP_TGZ}" ]; then
+    install_log "发现 app.tgz，正在提前解压源码... (${APP_TGZ})"
+
+    # 确定目标目录：优先使用 target 符号链接，否则用绝对路径
+    TARGET_DIR=""
+    if [ -L "${TRIM_APPDEST}/target" ]; then
+        TARGET_DIR="$(readlink -f "${TRIM_APPDEST}/target" 2>/dev/null || true)"
+    fi
+    if [ -z "${TARGET_DIR}" ]; then
+        TARGET_DIR="/usr/local/apps/@appcenter/com.kevinroy.hermesagent"
+        install_log "target 符号链接不可用，使用默认路径: ${TARGET_DIR}"
+    fi
+
+    mkdir -p "${TARGET_DIR}"
+    tar xzf "${APP_TGZ}" -C "${TARGET_DIR}" 2>&1 | while IFS= read -r line; do install_log "extract: $line"; done
+    install_log "源码已解压到 ${TARGET_DIR}"
+
+    # 如果 target 符号链接不存在但目录已创建，创建符号链接
+    if [ ! -L "${TRIM_APPDEST}/target" ] && [ ! -d "${TRIM_APPDEST}/target" ]; then
+        ln -sf "${TARGET_DIR}" "${TRIM_APPDEST}/target" 2>&1 | while IFS= read -r line; do install_log "ln: $line"; done
+        install_log "已创建 target 符号链接到 ${TARGET_DIR}"
+    fi
+else
+    install_log "未找到 app.tgz（${APP_TGZ}），将检查本地源码目录..."
+fi
+
+install_log "正在安装 Hermes Agent 核心依赖..."
+
+if [ -f "${CODE_DIR}/setup.py" ] || [ -f "${CODE_DIR}/pyproject.toml" ]; then
+    install_log "检测到本地源码，使用本地安装模式..."
+    cd "${CODE_DIR}"
+    "${VENV_DIR}/bin/pip3" install -e . -i "${PYPI_MIRROR_URL}" 2>&1 | while IFS= read -r line; do install_log "pip: $line"; done
+    if [ $? -ne 0 ]; then
+        install_log "本地安装失败，尝试不带镜像源重试..."
+        "${VENV_DIR}/bin/pip3" install -e . 2>&1 | while IFS= read -r line; do install_log "pip: $line"; done
+    fi
+elif [ -f "${TRIM_APPDEST}/target/hermes/code/setup.py" ]; then
+    # 特殊 fallback: 直接检查目标目录（绕过 CODE_DIR 符号链接）
+    install_log "使用备用路径检测到本地源码..."
+    cd "${TRIM_APPDEST}/target/hermes/code"
+    "${VENV_DIR}/bin/pip3" install -e . -i "${PYPI_MIRROR_URL}" 2>&1 | while IFS= read -r line; do install_log "pip: $line"; done
+else
+    install_log "未找到本地源码，尝试从 GitHub 克隆..."
+    git clone --depth 1 --branch "${HERMES_VERSION}" "${HERMES_REPO}" "${CODE_DIR}" 2>&1 | while IFS= read -r line; do install_log "git: $line"; done
+    if [ $? -ne 0 ]; then
+        install_log "错误：GitHub 克隆失败，请检查网络连接。"
+        exit 1
+    fi
+    cd "${CODE_DIR}"
+    "${VENV_DIR}/bin/pip3" install -e . -i "${PYPI_MIRROR_URL}" 2>&1 | while IFS= read -r line; do install_log "pip: $line"; done
+fi
+
+install_log "正在安装 Web Dashboard 依赖 (fastapi + uvicorn)..."
+"${VENV_DIR}/bin/pip3" install fastapi uvicorn -i "${PYPI_MIRROR_URL}" 2>&1 | while IFS= read -r line; do install_log "pip: $line"; done
+
+# ── Step 3: 创建数据目录 & 修正权限 ──
+install_log "=== 步骤 3/3: 创建数据目录并修正权限 ==="
+mkdir -p "${HERMES_HOME}"
+
+chown -R "${TRIM_USERNAME}:${TRIM_GROUPNAME}" "${HERMES_HOME}" 2>/dev/null
+chmod -R 755 "${HERMES_HOME}" 2>/dev/null
+
+install_log "=== Hermes Agent 安装完成！==="
+install_log "Web Dashboard: http://localhost:9119"
+install_log "数据目录: ${HERMES_HOME}"
+
+exit 0

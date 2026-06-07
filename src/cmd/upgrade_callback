@@ -1,0 +1,49 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "${SCRIPT_DIR}/common"
+
+export HOME="${WORKING_DIR}"
+export HERMES_HOME="${HERMES_HOME}"
+export PATH="/var/apps/python312/target/bin:${VENV_DIR}/bin:$PATH"
+
+install_log "=== 开始升级 Hermes Agent ==="
+
+# ── 停止运行中的服务 ──
+if [ -f "${PID_FILE}" ]; then
+    pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+    if kill -0 "${pid}" 2>/dev/null; then
+        install_log "正在停止运行中的 Hermes Agent (PID: ${pid})..."
+        kill -TERM "${pid}" 2>/dev/null
+        sleep 3
+        kill -KILL "${pid}" 2>/dev/null
+        rm -f "${PID_FILE}"
+    fi
+fi
+
+# ── 检查本地源码 ──
+if [ ! -f "${CODE_DIR}/setup.py" ] && [ ! -f "${CODE_DIR}/pyproject.toml" ]; then
+    install_log "错误：未找到本地源码，无法升级。"
+    exit 1
+fi
+
+# ── 本地 reinstall ──
+install_log "正在通过本地源码重新安装依赖..."
+install_log "使用的 PyPI 镜像源: ${PYPI_MIRROR_URL}"
+
+cd "${CODE_DIR}"
+"${VENV_DIR}/bin/pip3" install -e . -i "${PYPI_MIRROR_URL}" 2>&1 | while IFS= read -r line; do install_log "pip: $line"; done
+
+if [ $? -ne 0 ]; then
+    install_log "警告：镜像源安装有警告，尝试不带镜像源..."
+    "${VENV_DIR}/bin/pip3" install -e . 2>&1 | while IFS= read -r line; do install_log "pip: $line"; done
+fi
+
+install_log "正在更新 Web Dashboard 依赖 (fastapi + uvicorn)..."
+"${VENV_DIR}/bin/pip3" install fastapi uvicorn -i "${PYPI_MIRROR_URL}" 2>&1 | while IFS= read -r line; do install_log "pip: $line"; done
+
+chown -R "${TRIM_USERNAME}:${TRIM_GROUPNAME}" "${HERMES_HOME}" 2>/dev/null
+
+install_log "=== Hermes Agent 升级完成 ==="
+install_log "请手动重启应用以应用新版本。"
+exit 0

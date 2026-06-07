@@ -1,0 +1,135 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "${SCRIPT_DIR}/common"
+
+export GATEWAY_ALLOW_ALL_USERS=true
+export HOME="${WORKING_DIR}"
+export HERMES_HOME="${HERMES_HOME}"
+export PATH="${VENV_DIR}/bin:/var/apps/python312/target/bin:$PATH"
+export TZ=Asia/Shanghai
+
+check_process() {
+    local pid=$1
+    if kill -0 "${pid}" 2>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+status() {
+    if [ -f "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        if check_process "${pid}"; then
+            return 0
+        else
+            rm -f "${PID_FILE}"
+        fi
+    fi
+    return 1
+}
+
+start_process() {
+    # ── 强制清理可能残留的旧 hermes 进程 ──
+    if [ -f "${PID_FILE}" ]; then
+        old_pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        install_log "清理旧 PID ${old_pid}..."
+        kill -9 "${old_pid}" 2>/dev/null || true
+        rm -f "${PID_FILE}"
+    fi
+    # 地毯式搜索并杀掉所有 hermes dashboard 残留进程
+    pkill -f "hermes.*dashboard" 2>/dev/null || true
+    sleep 2
+
+    if [ ! -d "${VENV_DIR}" ] || [ ! -f "${VENV_DIR}/bin/hermes" ]; then
+        install_log "Hermes Agent is not installed. Please run install first."
+        echo "Hermes Agent is not installed. Please run install first." >&2
+        return 1
+    fi
+
+    install_log "Starting Hermes Dashboard on port 9119..."
+    cd "${CODE_DIR}"
+
+    export HERMES_WEB_DIST="${CODE_DIR}/hermes_cli/web_dist"
+    export HERMES_DASHBOARD_HOST=0.0.0.0
+    export HERMES_DASHBOARD_PORT=9119
+    export HERMES_DASHBOARD_INSECURE=1
+
+    bash -c "cd ${CODE_DIR} && ${VENV_DIR}/bin/hermes dashboard --host 0.0.0.0 --port 9119 --no-open --insecure" 2>&1 | while IFS= read -r line; do install_log "hermes: $line"; done &
+    printf "%s" "$!" > "${PID_FILE}"
+
+    sleep 3
+    if status; then
+        install_log "Hermes Dashboard started successfully (PID: $(cat ${PID_FILE}))."
+        return 0
+    else
+        install_log "Failed to start Hermes Dashboard."
+        rm -f "${PID_FILE}"
+        return 1
+    fi
+}
+
+stop_process() {
+    install_log "Stopping Hermes Agent..."
+
+    if [ -r "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        install_log "PID=${pid}"
+
+        if ! check_process "${pid}"; then
+            rm -f "${PID_FILE}"
+            install_log "Process already exited, removed PID file."
+            return 0
+        fi
+
+        install_log "Sending TERM signal to PID ${pid}..."
+        kill -TERM "${pid}" 2>&1 | while IFS= read -r line; do install_log "kill: $line"; done
+
+        local count=0
+        while check_process "${pid}" && [ $count -lt 15 ]; do
+            sleep 1
+            count=$((count + 1))
+            install_log "Waiting for graceful shutdown... (${count}s/15s)"
+        done
+
+        if check_process "${pid}"; then
+            install_log "Sending KILL signal to PID ${pid}..."
+            kill -KILL "${pid}" 2>&1 | while IFS= read -r line; do install_log "kill: $line"; done
+            sleep 1
+        fi
+
+        rm -f "${PID_FILE}"
+        install_log "Hermes Agent stopped."
+    fi
+
+    return 0
+}
+
+case "$1" in
+start)
+    start_process
+    exit $?
+    ;;
+stop)
+    stop_process
+    exit $?
+    ;;
+status)
+    if status; then
+        exit 0
+    else
+        exit 3
+    fi
+    ;;
+restart)
+    stop_process
+    sleep 2
+    start_process
+    exit $?
+    ;;
+*)
+    echo "Usage: $0 {start|stop|status|restart}"
+    exit 1
+    ;;
+esac

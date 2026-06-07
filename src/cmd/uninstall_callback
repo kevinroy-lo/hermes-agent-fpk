@@ -1,0 +1,21 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "${SCRIPT_DIR}/common"
+
+case "${wizard_uninstall_mode:-keep-data}" in
+full)
+    install_log "执行完全卸载，删除所有数据..."
+    rm -rf "${HERMES_HOME}" 2>/dev/null
+    rm -rf "${CODE_DIR}" 2>/dev/null
+    rm -rf "${VENV_DIR}" 2>/dev/null
+    rm -f "${TRIM_PKGHOME}/.hermes_keep_runtime" 2>/dev/null
+    ;;
+keep-data|*)
+    install_log "保留用户数据（HERMES_HOME: ${HERMES_HOME}）..."
+    # Keep HERMES_HOME data, mark runtime as keepable
+    touch "${TRIM_PKGHOME}/.hermes_keep_runtime"
+    ;;
+esac
+
+exit 0

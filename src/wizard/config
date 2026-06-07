@@ -1,0 +1,11 @@
+[
+  {
+    "stepTitle": "Hermes Agent 配置",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "修改配置后需要重启应用才能生效。"
+      }
+    ]
+  }
+]

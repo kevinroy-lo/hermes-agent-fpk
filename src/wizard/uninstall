@@ -1,0 +1,36 @@
+[
+  {
+    "stepTitle": "卸载 Hermes Agent",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "即将卸载 Hermes Agent。"
+      },
+      {
+        "type": "tips",
+        "helpText": "• <b>应用文件</b>: 将被彻底删除<br/>• <b>Python 虚拟环境</b>: 将被彻底删除<br/>• <b>用户数据</b>: 根据下方选择决定是否保留"
+      },
+      {
+        "type": "select",
+        "field": "wizard_uninstall_mode",
+        "label": "卸载模式",
+        "editable": true,
+        "options": [
+          {
+            "label": "保留用户数据（保留 Agent 配置、API Key、对话历史等）",
+            "value": "keep-data"
+          },
+          {
+            "label": "完全卸载（删除应用及所有用户数据）",
+            "value": "full"
+          }
+        ],
+        "initValue": "keep-data"
+      },
+      {
+        "type": "tips",
+        "helpText": "<strong>保留用户数据：</strong>仅在应用中心移除该应用，Agent 的配置、设置、API Key 等将保留在服务器上。重新安装后可继续使用原有配置。<br><br><strong>完全卸载：</strong>删除应用及所有相关数据，包括 Agent 配置、用户设置、对话历史和持久化数据。<strong>此操作不可撤销。</strong>"
+      }
+    ]
+  }
+]

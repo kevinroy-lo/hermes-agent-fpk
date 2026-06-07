@@ -1,0 +1,58 @@
+[
+  {
+    "stepTitle": "欢迎使用 Hermes Agent",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "Hermes Agent 是 Nous Research 推出的自改进 AI 智能体，能够编写和执行业务代码、浏览网页、调用工具，并通过迭代反思不断自我改进。"
+      },
+      {
+        "type": "tips",
+        "helpText": "此为本机原生应用版本。源码已预置在包内，安装过程将：<br/>1. 创建 Python 3.12 虚拟环境<br/>2. 安装所有依赖（约需 5-10 分钟，视网络情况而定）"
+      },
+      {
+        "type": "tips",
+        "helpText": "请确保飞牛系统已安装 <b>Python 312</b> 应用。安装完成后 Web Dashboard 将监听端口 9119。"
+      }
+    ]
+  },
+  {
+    "stepTitle": "PyPI 镜像源设置",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "选择 PyPI 安装源。如果您的网络环境连接官方源较慢，建议选择清华源。"
+      },
+      {
+        "type": "select",
+        "field": "wizard_pypi_mirror",
+        "label": "PyPI 安装源",
+        "initValue": "tsinghua",
+        "options": [
+          {
+            "label": "PyPI 官方源 (国内用户可能较慢)",
+            "value": "official"
+          },
+          {
+            "label": "清华大学镜像源（推荐）",
+            "value": "tsinghua"
+          },
+          {
+            "label": "阿里云镜像源",
+            "value": "aliyun"
+          },
+          {
+            "label": "中科大镜像源",
+            "value": "ustc"
+          }
+        ],
+        "rules": [
+          {
+            "required": true,
+            "message": "请选择安装源"
+          }
+        ]
+      }
+    ]
+  }
+]

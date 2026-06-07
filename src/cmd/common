@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Hermes Agent native app common utilities
+
+HERMES_VERSION="v0.15.1"
+HERMES_REPO="https://github.com/NousResearch/hermes-agent.git"
+
+# ── 数据 & 工作目录 ──
+: "${TRIM_APPDATA:=/var/apps/com.kevinroy.hermesagent/data}"
+: "${TRIM_APPDEST:=/var/apps/com.kevinroy.hermesagent}"
+: "${TRIM_PKGVAR:=/var/apps/com.kevinroy.hermesagent/var}"
+: "${TRIM_PKGETC:=/var/apps/com.kevinroy.hermesagent/etc}"
+: "${TRIM_PKGHOME:=/var/apps/com.kevinroy.hermesagent/home}"
+: "${TRIM_USERNAME:=root}"
+: "${TRIM_GROUPNAME:=root}"
+
+HERMES_HOME="${TRIM_APPDATA}/hermes"
+CODE_DIR="${TRIM_APPDEST}/target/hermes/code"
+VENV_DIR="${HERMES_HOME}/venv"
+PID_FILE="${TRIM_PKGVAR}/hermes-agent.pid"
+WORKING_DIR="${TRIM_PKGHOME}"
+
+# Python 环境（完整路径，不依赖 PATH）
+PYTHON_BIN="/var/apps/python312/target/bin/python3"
+
+# PyPI 镜像源
+PYPI_MIRROR_URL="${wizard_pypi_mirror_url:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+
+# 日志：写 stderr，不依赖任何目录
+install_log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >&2
+}
+
+ensure_dirs() {
+    mkdir -p "${HERMES_HOME}"
+}

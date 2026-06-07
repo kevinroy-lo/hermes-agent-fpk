@@ -1,0 +1,8 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "${SCRIPT_DIR}/common"
+
+ensure_dirs
+install_log "Starting Hermes Agent installation..."
+exit 0

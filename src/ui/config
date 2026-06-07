@@ -1,0 +1,13 @@
+{
+  ".url": {
+    "com.kevinroy.hermesagent.Application": {
+      "title": "Hermes Agent",
+      "desc": "Self-improving AI agent by Nous Research",
+      "icon": "images/icon.png",
+      "type": "url",
+      "protocol": "http",
+      "port": "9119",
+      "allUsers": false
+    }
+  }
+}

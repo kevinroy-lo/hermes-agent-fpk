@@ -1,0 +1,14 @@
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "${SCRIPT_DIR}/common"
+
+# Restart the service to apply config changes
+if [ -f "${PID_FILE}" ]; then
+    pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+    if kill -0 "${pid}" 2>/dev/null; then
+        install_log "配置文件已更改，重启 Hermes Agent..."
+        kill -TERM "${pid}" 2>/dev/null
+    fi
+fi
+
+exit 0
