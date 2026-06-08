@@ -23,22 +23,22 @@ status() {
         pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
         if check_process "${pid}"; then
             return 0
-        else
-            rm -f "${PID_FILE}"
         fi
+        # PID 文件中的进程已死，清理
+        rm -f "${PID_FILE}"
+    fi
+    # ⭐ 兜底：通过进程名查找（应对 PID 文件丢失或错位）
+    local live_pid
+    live_pid=$(pgrep -f "hermes.*dashboard.*9119" 2>/dev/null | head -1)
+    if [ -n "${live_pid}" ]; then
+        printf "%s" "${live_pid}" > "${PID_FILE}"
+        return 0
     fi
     return 1
 }
 
 start_process() {
-    # ── 强制清理可能残留的旧 hermes 进程 ──
-    if [ -f "${PID_FILE}" ]; then
-        old_pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
-        install_log "清理旧 PID ${old_pid}..."
-        kill -9 "${old_pid}" 2>/dev/null || true
-        rm -f "${PID_FILE}"
-    fi
-    # 地毯式搜索并杀掉所有 hermes dashboard 残留进程
+    # ── 地毯式清理所有残留 hermes dashboard 进程 ──
     pkill -f "hermes.*dashboard" 2>/dev/null || true
     sleep 2
 
@@ -56,12 +56,15 @@ start_process() {
     export HERMES_DASHBOARD_PORT=9119
     export HERMES_DASHBOARD_INSECURE=1
 
-    bash -c "cd ${CODE_DIR} && ${VENV_DIR}/bin/hermes dashboard --host 0.0.0.0 --port 9119 --no-open --insecure" 2>&1 | while IFS= read -r line; do install_log "hermes: $line"; done &
-    printf "%s" "$!" > "${PID_FILE}"
+    # ⭐ 直接后台启动 hermes（不用管道/bash -c），确保 $! 捕获真实 PID
+    nohup "${VENV_DIR}/bin/hermes" dashboard --host 0.0.0.0 --port 9119 --no-open --insecure \
+        >> "${TRIM_PKGVAR}/hermes-dashboard.log" 2>&1 &
+    HERMES_PID=$!
+    printf "%s" "${HERMES_PID}" > "${PID_FILE}"
 
     sleep 3
-    if status; then
-        install_log "Hermes Dashboard started successfully (PID: $(cat ${PID_FILE}))."
+    if kill -0 "${HERMES_PID}" 2>/dev/null; then
+        install_log "Hermes Dashboard started successfully (PID: ${HERMES_PID})."
         return 0
     else
         install_log "Failed to start Hermes Dashboard."
@@ -100,9 +103,14 @@ stop_process() {
         fi
 
         rm -f "${PID_FILE}"
-        install_log "Hermes Agent stopped."
+        install_log "Hermes Agent stopped (via PID file)."
     fi
 
+    # ⭐ 兜底：确保没有 hermes dashboard 残留进程
+    pkill -f "hermes.*dashboard.*9119" 2>/dev/null || true
+    rm -f "${PID_FILE}"
+
+    install_log "Hermes Agent stopped."
     return 0
 }
 
